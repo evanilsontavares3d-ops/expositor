@@ -1,0 +1,899 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Expositor Cottonbaby 3D</title>
+<meta name="theme-color" content="#f1f2f5">
+<link rel="icon" href="data:,"><!-- sem favicon: evita o pedido de /favicon.ico, que o bucket privado responde com 403 -->
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap">
+<style>html,body{margin:0}[hidden]{display:none!important}</style>
+<style>
+/* Identidade Cottonbaby: fundo claro, azul-marinho, Montserrat, selos em pilula, icones de linha.
+   Sempre no tema claro, mesmo com o aparelho no modo escuro (identidade fixa da marca).
+   Layout: titulo e ficha a esquerda, palco 3D ao centro, controles a direita; no celular empilha. */
+:root{
+  --bg:#f1f2f5; --surface:#ffffff; --stage-a:#ffffff; --stage-b:#e2e5ec;
+  --fg:#14285a; --muted:#4d5b82; --line:#c9d0e0;
+  --navy:#14285a; --on-navy:#ffffff; --dim:#14285a;
+  --font:"Montserrat","Avenir Next","Segoe UI",system-ui,sans-serif;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+button,input,label{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+h1,h2{text-wrap:balance}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:13.5px;line-height:1.45}
+/* Grade. Desktop: cabe na altura da tela, com topo e base das 3 colunas alinhados. Em cima: logo | embalagem e
+   capacidade | medidas e giro. Embaixo: ficha | 3D | controles. Tablet: 2 colunas. Celular: logo e embalagem na
+   mesma linha, o 3D logo abaixo e o maximo de informacao na primeira tela. */
+.wrap{max-width:1240px;margin:0 auto;display:grid;gap:14px 24px;
+  padding:18px max(24px,env(safe-area-inset-right,0px)) 18px max(24px,env(safe-area-inset-left,0px));
+  grid-template-columns:260px minmax(0,1fr) 330px;grid-template-rows:auto auto minmax(0,1fr);
+  grid-template-areas:"logo pills toggles" "logo cap toggles" "intro center side";height:100vh;height:100dvh;min-height:640px}
+.logo{grid-area:logo;align-self:center} .pills{grid-area:pills} .cap-line{grid-area:cap}
+.toggles{grid-area:toggles;align-self:center;justify-content:flex-end}
+.intro{grid-area:intro} .center{grid-area:center} .side{grid-area:side}
+.intro,.side,.center{display:flex;flex-direction:column;gap:14px;min-width:0;min-height:0}
+.center .stage{flex:1;height:auto;min-height:0}
+.versat{margin-top:auto} .versat h2+.checks{margin-top:10px}
+.c-config{flex:1;min-height:0;overflow:auto}
+.logo{width:130px;aspect-ratio:868/288;background:var(--fg);-webkit-mask:url(img/logo.png) center/contain no-repeat;mask:url(img/logo.png) center/contain no-repeat}
+h1{font-weight:300;font-size:clamp(26px,2.5vw,34px);line-height:1.05;margin:0;letter-spacing:-.01em}
+h1 b{display:block;font-weight:800}
+.sub{margin:0;padding-top:10px;border-top:1.5px solid var(--fg);font-size:15px;font-weight:400;color:var(--muted)}
+.specs{display:flex;flex-direction:column;gap:12px;margin:0;padding:0;list-style:none}
+.specs li{display:flex;gap:12px;align-items:center} .specs svg{width:32px;height:32px}
+svg{width:40px;height:40px;flex:none;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.specs b{display:block;font-weight:700} .specs span{font-variant-numeric:tabular-nums}
+.pill{display:inline-block;background:var(--navy);color:var(--on-navy);border-radius:999px;padding:6px 18px;font-weight:700;font-size:13.5px}
+.pills{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+.pills button{font:inherit;font-weight:700;border-radius:999px;padding:6px 18px;border:1.5px solid var(--navy);background:transparent;color:var(--fg);cursor:pointer}
+.pills button[aria-pressed="true"]{background:var(--navy);color:var(--on-navy)}
+.pills button:hover,.seg button:hover,.ghost:hover{border-color:var(--fg)}
+.ghost{font:inherit;font-weight:700;font-size:14px;width:100%;padding:10px;border:1.5px solid var(--navy);border-radius:999px;background:transparent;color:var(--fg);cursor:pointer}
+.ghost[disabled]{opacity:.6;cursor:progress}
+.cap-line{margin:-8px 0 0;text-align:center;font-size:14.5px} .cap-line b{font-weight:800;font-variant-numeric:tabular-nums}
+.stage{position:relative;border-radius:14px;overflow:hidden;border:1px solid var(--line);
+  background:radial-gradient(120% 90% at 50% 30%,var(--stage-a),var(--stage-b));height:clamp(340px,60vh,640px);touch-action:none}
+.stage canvas{display:block;width:100%;height:100%}
+.hint{position:absolute;left:12px;bottom:10px;font-size:12px;color:var(--muted);pointer-events:none}
+.status{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);font-weight:600;pointer-events:none}
+.cota{position:absolute;top:0;left:0;transform:translate(-50%,-50%);background:var(--surface);color:var(--dim);
+  border-radius:999px;padding:1px 9px;font-weight:700;font-size:12.5px;font-variant-numeric:tabular-nums;white-space:nowrap;pointer-events:none}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:14px}
+h2{margin:0;font-size:16px;font-weight:700;padding-bottom:8px;border-bottom:1.5px solid var(--fg)}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.seg button{font:inherit;text-align:left;padding:8px 10px;border-radius:12px;border:1.5px solid var(--line);background:transparent;color:var(--fg);cursor:pointer}
+.seg button b{display:block;font-weight:700;font-size:13.5px}
+.seg button small{color:var(--muted);font-variant-numeric:tabular-nums;font-size:11px}
+.seg button[aria-pressed="true"]{border-color:var(--navy);background:var(--navy);color:var(--on-navy)}
+.seg button[aria-pressed="true"] small{color:var(--on-navy);opacity:.85}
+button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid var(--muted);outline-offset:2px}
+.sliders{display:flex;flex-direction:column;gap:6px}
+.sliders label{display:flex;justify-content:space-between;gap:8px}
+.sliders output{font-weight:700;font-variant-numeric:tabular-nums}
+.sliders input{width:100%;accent-color:var(--navy);margin:0 0 4px}
+.toggles{display:flex;flex-wrap:wrap;gap:6px 20px}
+.toggles label{display:flex;align-items:center;gap:10px;cursor:pointer}
+.toggles input{width:18px;height:18px;accent-color:var(--navy)}
+.ar{font:inherit;font-weight:700;font-size:16px;width:100%;padding:13px;border:0;border-radius:999px;background:var(--navy);color:var(--on-navy);cursor:pointer}
+.ar:hover{filter:brightness(1.15)}
+.note{margin:0;color:var(--muted);font-size:12px}
+/* botoes dentro do palco 3D: AR no canto inferior direito e "Como usar" no superior direito */
+.ar-palco{position:absolute;right:10px;bottom:10px;width:auto;display:flex;align-items:center;gap:6px;font-size:13px;padding:7px 13px 7px 10px;
+  box-shadow:0 3px 10px rgba(20,40,90,.22)}
+.ar-palco svg{width:16px;height:16px;stroke-width:3}
+.ajuda{position:absolute;top:10px;right:10px;width:30px;height:30px;border-radius:50%;border:1.5px solid var(--navy);background:var(--surface);
+  color:var(--fg);font:inherit;font-weight:800;font-size:14px;cursor:pointer}
+/* modais (QR code e tutorial) */
+.modal{border:0;border-radius:16px;padding:26px 22px 20px;width:min(380px,calc(100vw - 32px));max-height:calc(100dvh - 32px);
+  background:var(--surface);color:var(--fg);font-family:var(--font);box-shadow:0 20px 60px rgba(12,20,44,.35)}
+.modal[open]{display:flex;flex-direction:column;gap:12px}
+.modal::backdrop{background:rgba(12,20,44,.5)}
+.modal h2{border:0;padding:0 28px 0 0;font-size:20px}
+.modal p{margin:0}
+.modal code{display:block;overflow-wrap:anywhere;font-size:12px;color:var(--muted);user-select:all}
+.fechar{position:absolute;top:8px;right:8px;width:38px;height:38px;border:0;border-radius:50%;background:transparent;color:var(--muted);
+  font:inherit;font-size:26px;line-height:1;cursor:pointer}
+.fechar:hover{background:var(--bg);color:var(--fg)}
+.qr{align-self:center;width:200px;height:200px;background:#fff;border-radius:8px}
+.qr svg{display:block;width:100%;height:100%;stroke:none}
+.tut-icone svg{width:56px;height:56px;color:var(--navy)}
+.tut-passo{color:var(--muted);font-size:13px;font-weight:600}
+.tut-pontos{display:flex;gap:6px}
+.tut-pontos i{width:8px;height:8px;border-radius:50%;background:var(--line)} .tut-pontos i.on{background:var(--navy);width:20px;border-radius:4px}
+.tut-acoes{display:grid;grid-template-columns:1fr 1.4fr;gap:10px;margin-top:4px}
+.tut-acoes .ghost,.tut-acoes .ar{padding:11px;font-size:15px}
+.tut-acoes .ghost[hidden]+.ar{grid-column:1/-1}
+.tut-pular{align-self:center;border:0;background:transparent;color:var(--muted);font:inherit;font-size:13px;text-decoration:underline;cursor:pointer;padding:4px}
+/* cartao de configuracao numa tela so: secoes "Tamanho" e "Frente" com rotulos pequenos (como no site da Cottonbaby),
+   escolhas curtas na mesma linha do rotulo; medidas e giro no rodape do cartao */
+.c-config{gap:10px}
+.rotulo{margin:0;font-size:11.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.c-config .rotulo~.rotulo{margin-top:4px;padding-top:12px;border-top:1px solid var(--line)}
+.linha{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:30px}
+.mini{display:inline-flex;flex:none;border:1.5px solid var(--navy);border-radius:999px;overflow:hidden}
+.mini button{font:inherit;font-size:12.5px;font-weight:700;padding:5px 11px;border:0;background:transparent;color:var(--fg);cursor:pointer}
+.mini button+button{border-left:1.5px solid var(--navy)}
+.mini button[aria-pressed="true"]{background:var(--navy);color:var(--on-navy)}
+.mini button:not([aria-pressed="true"]):hover{background:var(--bg)}.checks{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:8px 20px}
+.checks li{display:flex;gap:10px;align-items:center} .checks svg{width:22px;height:22px;stroke-width:2.6}
+#overlay{position:fixed;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;
+  padding:calc(16px + env(safe-area-inset-top,0px)) 16px calc(24px + env(safe-area-inset-bottom,0px));font-family:var(--font)}
+#overlay>*{pointer-events:auto}
+#overlay .top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+#overlay .pill{background:rgba(12,20,44,.8);color:#fff;font-weight:600;font-size:14px;padding:8px 14px}
+#overlay button{font:inherit;font-weight:700;border:0;border-radius:999px;padding:10px 18px;background:#fff;color:#14285a}
+#overlay .bottom{display:flex;justify-content:center;gap:10px;flex-wrap:wrap}
+/* tablet e celular: no fim, para valer sobre as regras gerais acima */
+@media (max-width:1080px){
+  .wrap{grid-template-columns:minmax(0,1fr) 320px;grid-template-rows:auto;
+    grid-template-areas:"logo pills" "cap toggles" "center side" "intro intro";height:auto;min-height:0}
+  .cap-line{margin-top:0;text-align:left}
+  .pills{flex-wrap:nowrap;justify-content:flex-end} .pills button{padding:6px 14px;white-space:nowrap}
+  .hint{top:12px;bottom:auto;right:56px}   /* a dica sobe para nao bater no botao de AR */
+  .center .stage{flex:none;height:clamp(340px,60vh,640px)} .specs{flex-direction:row;flex-wrap:wrap;gap:16px 28px} .versat{margin-top:8px}
+  .c-config{flex:none;overflow:visible}
+}
+@media (max-width:760px){
+  .wrap{grid-template-columns:auto minmax(0,1fr);gap:12px;
+    grid-template-areas:"logo pills" "center center" "cap cap" "toggles toggles" "side side" "intro intro";
+    padding:12px max(16px,env(safe-area-inset-right,0px)) 32px max(16px,env(safe-area-inset-left,0px))}
+  .logo{width:84px}
+  .pills{justify-content:flex-end;flex-wrap:nowrap;gap:6px} .pills button{padding:5px 9px;font-size:11.5px;white-space:nowrap}
+  .cap-line{text-align:center;font-size:12px} .toggles{justify-content:center}
+  .center .stage{height:clamp(300px,50vh,460px)}   /* mesmo tamanho do 3D de antes no celular */
+  .hint{top:12px;bottom:auto;right:56px}   /* a dica sobe para nao bater no botao de AR */
+}
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <div class="logo" role="img" aria-label="Cottonbaby"></div>
+  <div class="pills" role="group" aria-label="Exibir embalagens">
+    <button type="button" id="pCom" aria-pressed="true">Com Embalagem</button>
+    <button type="button" id="pSem" aria-pressed="false">Sem Embalagem</button>
+  </div>
+  <p class="cap-line" id="capLine" aria-live="polite"></p>
+  <div class="toggles">
+    <label><input type="checkbox" id="tCotas" checked> Mostrar medidas</label>
+    <label><input type="checkbox" id="tGiro"> Giro automático</label>
+  </div>
+  <section class="intro">
+    <h1>Expositor <b translate="no">Cottonbaby</b></h1>
+    <p class="sub">Apresentação Comercial</p>
+    <ul class="specs">
+      <li><svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 5 36 14v18L24 43 12 32V14z"/><path d="M12 14l12 6 12-6M24 20v23M24 5v15"/></svg><div><b>Material</b><span>PS Poliestireno Cristal Transparente e Black</span></div></li>
+      <li><svg viewBox="0 0 48 48" aria-hidden="true"><path d="M7 7v34h34"/><path d="M7 15h4M7 23h4M7 31h4M17 41v-4M25 41v-4M33 41v-4"/><path d="M28 12l9 5v10l-9 5-9-5V17z"/><path d="M19 17l9 5 9-5M28 22v10"/></svg><div><b>Medidas (L × A × P)</b><span id="fM">40 cm × 15 cm × 28 cm</span></div></li>
+      <li><svg viewBox="0 0 48 48" aria-hidden="true"><path d="M6 24h36"/><path d="M24 6l6 8H18zM24 42l6-8H18z"/></svg><div><b>Espessura</b><span>4 mm</span></div></li>
+      <li><svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 6 40 14v20L24 42 8 34V14z"/><path d="M8 14l16 8 16-8M24 22v20"/></svg><div><b id="fCt">Capacidade para até 48 caixas</b><span id="fCd">Organização: 6 frentes × 8 fileiras</span></div></li>
+    </ul>
+    <div class="versat">
+      <h2>Versatilidade no PDV</h2>
+      <ul class="checks">
+        <li><svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="17"/><path d="M16 24l6 6 11-12"/></svg>Uso com ou sem embalagem</li><li><svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="17"/><path d="M16 24l6 6 11-12"/></svg>Maior visibilidade do produto</li>
+        <li><svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="17"/><path d="M16 24l6 6 11-12"/></svg>Organização e praticidade no abastecimento</li><li><svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="17"/><path d="M16 24l6 6 11-12"/></svg>Ideal para farmácias, balcões e pontos de venda</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="center">
+    <div class="stage" id="stage">
+      <canvas id="c" aria-label="Modelo 3D do expositor"></canvas>
+      <div class="status" id="status">Carregando modelo…</div>
+      <div class="cota" id="cotaW" hidden></div><div class="cota" id="cotaH" hidden></div><div class="cota" id="cotaD" hidden></div>
+      <div class="hint">Arraste para girar · role ou pince para aproximar</div>
+      <button class="ajuda" id="btnAjuda" type="button" aria-label="Como usar" title="Como usar">?</button>
+      <button class="ar ar-palco" id="btnAR" type="button"><svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 6 39 14v20L24 42 9 34V14z"/><path d="M9 14l15 8 15-8M24 22v20"/></svg>Ver no meu espaço (AR)</button>
+    </div>
+  </section>
+
+  <aside class="side">
+    <div class="card c-config">
+      <p class="rotulo" id="lblTam">Tamanho</p>
+      <div class="seg" role="group" aria-labelledby="lblTam">
+        <button id="op1" type="button" aria-pressed="true"><b>Opção 1</b><small>40 × 15 × 28 cm</small></button>
+        <button id="op2" type="button" aria-pressed="false"><b>Opção 2</b><small>40 × 15 × 40 cm</small></button>
+      </div>
+      <div class="sliders">
+        <label for="sW">Largura (frente) <output id="oW">40 cm</output></label>
+        <input type="range" id="sW" min="20" max="80" step="1" value="40">
+        <label for="sD">Profundidade (lateral) <output id="oD">28 cm</output></label>
+        <input type="range" id="sD" min="10" max="60" step="1" value="28">
+      </div>
+      <div class="linha">
+        <span id="lblDiv">Divisórias</span>
+        <div class="mini" role="group" aria-labelledby="lblDiv">
+          <button id="dCom" type="button" aria-pressed="true">Com</button>
+          <button id="dSem" type="button" aria-pressed="false">Sem</button>
+        </div>
+      </div>
+      <p class="note" id="fL"></p>
+      <p class="rotulo" id="lblFrente">Frente</p>
+      <div class="linha">
+        <span id="lblAzul">Azul na frente</span>
+        <div class="mini" role="group" aria-labelledby="lblAzul">
+          <button id="fParcial" type="button" aria-pressed="true">Faixa azul</button>
+          <button id="fTotal" type="button" aria-pressed="false">Toda azul</button>
+        </div>
+      </div>
+      <div class="linha">
+        <span id="lblPos">Logo</span>
+        <div class="mini" role="group" aria-label="Posição do logo">
+          <button id="lpE" type="button" aria-pressed="false">Esquerda</button>
+          <button id="lpC" type="button" aria-pressed="false">Centro</button>
+          <button id="lpD" type="button" aria-pressed="true">Direita</button>
+        </div>
+      </div>
+      <div class="sliders">
+        <label for="sLogo">Tamanho do logo (largura) <output id="oLogo">15 cm</output></label>
+        <input type="range" id="sLogo" min="8" max="16" step="1" value="15">
+      </div>
+    </div>
+    <div class="card c-pdf">
+      <h2>Enviar para a fábrica</h2>
+      <button class="ghost" id="btnPDF" type="button">Gerar PDF de fabricação</button>
+      <p class="note" id="pdfStatus" aria-live="polite">Vistas cotadas, imagens 3D, comparativo e lista de peças da medida escolhida.</p>
+    </div>
+  </aside>
+</div>
+<dialog class="modal" id="arModal" aria-labelledby="arTitulo">
+  <button class="fechar" type="button" data-fechar aria-label="Fechar">×</button>
+  <h2 id="arTitulo">Ver no meu espaço</h2>
+  <div class="qr" id="arQR" hidden></div>
+  <p id="arBoxMsg"></p>
+  <code id="arUrl"></code>
+  <button type="button" class="ghost" id="btnCopy">Copiar endereço</button>
+</dialog>
+<dialog class="modal" id="arPronto" aria-labelledby="arProntoTitulo">
+  <button class="fechar" type="button" data-fechar aria-label="Fechar">×</button>
+  <div class="tut-icone" id="arProntoIcone" aria-hidden="true"></div>
+  <h2 id="arProntoTitulo">Ver no seu espaço</h2>
+  <p>Toque em “Abrir a câmera” e aponte o celular para o balcão: o expositor aparece em tamanho real, com a configuração escolhida.</p>
+  <button type="button" class="ar" id="btnAbrirCamera" autofocus>Abrir a câmera</button>
+  <button type="button" class="tut-pular" id="arProntoDepois">Agora não, ver o 3D</button>
+</dialog>
+<dialog class="modal tutorial" id="tutorial" aria-labelledby="tutTitulo">
+  <button class="fechar" type="button" data-fechar aria-label="Fechar tutorial">×</button>
+  <div class="tut-icone" id="tutIcone" aria-hidden="true"></div>
+  <p class="tut-passo" id="tutPasso"></p>
+  <h2 id="tutTitulo"></h2>
+  <p id="tutTexto"></p>
+  <div class="tut-pontos" id="tutPontos" aria-hidden="true"></div>
+  <div class="tut-acoes"><button type="button" class="ghost" id="tutVoltar">Voltar</button><button type="button" class="ar" id="tutProx" autofocus>Próximo</button></div>
+  <button type="button" class="tut-pular" id="tutPular">Pular tutorial</button>
+</dialog>
+<div id="overlay" hidden>
+  <div class="top"><span class="pill" id="arHint">Aponte para o balcão e mova o celular devagar</span><button type="button" id="arExit">Sair</button></div>
+  <div class="bottom"><button type="button" id="arSwap">Opção 1 / 2</button><button type="button" id="arRot">Girar 45°</button></div>
+</div>
+<a id="quicklook" rel="ar" href="models/expositor_40x15x28.usdz" hidden><img alt="" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=="></a>
+
+<script type="importmap">{"imports":{"three":"./vendor/three.module.min.js","three/addons/":"./vendor/addons/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { NeutralEnvironment } from 'three/addons/environments/NeutralEnvironment.js';
+
+// medidas fixas do projeto (metros)
+const T = 0.004, H = 0.15, HF = 0.07, HS = 0.12, HDIV = 0.05, RQ = HS - HF;
+const CX = { w: 0.060, h: 0.105, d: 0.033 };            // caixa do produto (6 x 10,5 x 3,3 cm) + aba de 1,3 cm
+const FOLGA = 0.002, PASSO = CX.d + 0.0006;
+const PRESETS = [{ id: 'op1', W: 40, D: 28, arq: 'expositor_40x15x28' }, { id: 'op2', W: 40, D: 40, arq: 'expositor_40x15x40' }];
+const atual = { W: 40, D: 28, H: 15, calhas: 6, fileiras: 8 };
+let comEmbalagem = true, comDivisorias = true;
+// frente: total = frente toda azul (senao, so a faixa/etiqueta); pos = posicao do logo (e, c, d); logo = largura do logo em cm
+const frente = { total: false, pos: 'd', logo: 15 }, AZUL_ETIQUETA = '#17285c';   // mesmo azul do fundo da etiqueta
+const LOGO_MAX = () => frente.total ? 19 : 16;   // limitado pela altura da frente (7 cm)
+const frentePadrao = () => !frente.total && frente.pos === 'd' && frente.logo === 15;
+const ENDERECO_PUBLICO = 'https://cottonbaby.modelamixcgi.com.br/';   // usado no QR quando a pagina roda no computador local
+
+const $ = id => document.getElementById(id);
+const stage = $('stage'), canvas = $('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+// iluminacao igual ao padrao do model-viewer: ambiente "neutral", tone mapping Neutral e exposicao 1,3 (luz uniforme, cores fieis)
+renderer.toneMapping = THREE.NeutralToneMapping; renderer.toneMappingExposure = 1.3;
+renderer.xr.enabled = true;
+const scene = new THREE.Scene();
+scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new NeutralEnvironment(), 0.04).texture;
+const camera = new THREE.PerspectiveCamera(32, 1, 0.01, 30);
+const POS_INICIAL = new THREE.Vector3(0.48, 0.36, 0.8), ALVO = new THREE.Vector3(0, 0.06, 0);   // vista original: 3/4 de frente
+camera.position.copy(POS_INICIAL);
+const controls = new OrbitControls(camera, canvas);
+controls.target.copy(ALVO); controls.enableDamping = true;
+controls.minDistance = 0.3; controls.maxPolarAngle = Math.PI * 0.495; controls.autoRotateSpeed = 1.2;
+
+const sc = document.createElement('canvas'); sc.width = sc.height = 128;
+const g = sc.getContext('2d'), gr = g.createRadialGradient(64, 64, 8, 64, 64, 64);
+// sombra de contato: mais concentrada embaixo do expositor e pouco espalhada
+gr.addColorStop(0, 'rgba(10,16,40,.30)'); gr.addColorStop(0.55, 'rgba(10,16,40,.18)'); gr.addColorStop(1, 'rgba(10,16,40,0)'); g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+const sombra = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(sc), transparent: true, depthWrite: false }));
+sombra.rotation.x = -Math.PI / 2; sombra.position.y = -0.0005; scene.add(sombra);
+
+// PS cristal transparente: nem escurece nem esbranquica o que esta atras (caixas e fundo). Uma face por chapa (FrontSide:
+// as chapas sao solidos fechados, entao a face de tras nao soma um segundo veu), opacidade baixa e sem verniz (clearcoat
+// deixava brilho branco nos angulos rasos). A forma das chapas vem dos contornos finos.
+const psCristal = new THREE.MeshPhysicalMaterial({ color: 0xffffff, transparent: true, opacity: 0.04, roughness: 0.05,
+  metalness: 0, envMapIntensity: 0.7, side: THREE.FrontSide, depthWrite: false });
+const bordaPS = new THREE.LineBasicMaterial({ color: 0x7f93b0, transparent: true, opacity: 0.75 });
+const preto = new THREE.MeshStandardMaterial({ color: 0x0b0b0c, roughness: 0.15 });
+const pivot = new THREE.Group(); scene.add(pivot);       // o que e posicionado no AR
+const cotas = new THREE.Group(); scene.add(cotas);
+
+// ---------- recursos (arte da caixa, testeira e etiqueta) vindos do modelo feito no Blender ----------
+const manager = new THREE.LoadingManager();
+manager.addHandler(/^blob:/, new THREE.TextureLoader());   // texturas embutidas via <img>, compativel com paginas restritas
+const loader = new GLTFLoader(manager);
+async function baixar(arq) {   // .glb direto; se o servidor nao servir .glb, usa a copia em base64 (.glb.txt)
+  try { const r = await fetch(`models/${arq}.glb`); if (r.ok) return await r.arrayBuffer(); } catch {}
+  const t = await (await fetch(`models/${arq}.glb.txt`)).text();
+  return Uint8Array.from(atob(t.trim()), c => c.charCodeAt(0)).buffer;
+}
+let rec = null;
+async function carregarRecursos() {
+  const gltf = await loader.parseAsync(await baixar(PRESETS[0].arq), '');
+  const r = {};
+  gltf.scene.traverse(o => {
+    if (!o.isMesh) return;
+    const n = o.material.name;
+    if (n === 'Caixa_Cottonbaby' && !r.geoCaixa) { r.geoCaixa = o.geometry; r.matCaixa = o.material; }
+    if (n === 'Aba_Pendurar' && !r.geoAba) { r.geoAba = o.geometry; r.matAba = o.material; r.matAba.side = THREE.DoubleSide; }
+    if (n === 'PS_Black_Testeira') r.matTesteira = o.material;
+    if (n === 'Etiqueta_Frontal') r.matEtiqueta = o.material;
+  });
+  for (const m of [r.matCaixa, r.matTesteira, r.matEtiqueta]) { m.envMapIntensity = 1; if (m.map) m.map.anisotropy = 8; }
+  r.matCaixa.envMapIntensity = 0.75; r.matCaixa.color.setScalar(0.88);   // embalagem um pouco mais escura: arte com cores mais densas
+  r.matTesteira.map.wrapS = r.matTesteira.map.wrapT = THREE.ClampToEdgeWrapping; r.matTesteira.map.needsUpdate = true;
+  r.matAzul = r.matEtiqueta.clone(); r.matAzul.map = null; r.matAzul.color.set(AZUL_ETIQUETA);   // vinil da frente toda azul
+  return r;
+}
+
+// ---------- calculo de capacidade ----------
+function calcular(Wcm, Dcm, div = comDivisorias) {
+  // com divisorias, cada calha e separada por uma chapa de 4 mm; sem divisorias, as caixas ficam lado a lado
+  const W = Wcm / 100, D = Dcm / 100, Wi = W - 2 * T, e = div ? T : 0;
+  const calhas = Math.max(1, Math.floor((Wi + e) / (CX.w + FOLGA + e)));
+  const larguraCalha = (Wi - (calhas - 1) * e) / calhas;
+  const fileiras = Math.max(0, Math.floor((D - 2 * T - 0.002) / PASSO));
+  return { W, D, div, calhas, larguraCalha, passo: larguraCalha + e, divisorias: div ? calhas - 1 : 0, fileiras,
+    caixas: larguraCalha >= CX.w ? calhas * fileiras : 0 };
+}
+
+// ---------- construcao parametrica do expositor ----------
+function chapa(w, h, d, x, y, z, mat, pai, borda) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z);
+  if (borda) { m.renderOrder = 2; m.add(new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry), bordaPS)); }
+  pai.add(m); return m;
+}
+function construir(c) {
+  pivot.traverse(o => { if (o.geometry && o.geometry !== rec.geoCaixa && o.geometry !== rec.geoAba) o.geometry.dispose(); });
+  pivot.clear();
+  const { W, D } = c, x = W / 2, z = D / 2;
+  const est = new THREE.Group(); est.name = 'Estrutura'; const prod = new THREE.Group(); prod.name = 'Produtos'; pivot.add(est, prod);
+  chapa(W, T, D, 0, T / 2, 0, psCristal, est, true);                                         // base
+  chapa(W - 2 * T, HF - T, T, 0, (HF + T) / 2, z - T / 2, psCristal, est, true);             // frente
+  // laterais: altas atras, topo reto e quarto de circulo (raio RQ) descendo ate a altura da frente
+  const s = new THREE.Shape(); s.moveTo(z, T); s.lineTo(-z + T, T); s.lineTo(-z + T, HS); s.lineTo(z - RQ, HS);
+  s.absarc(z - RQ, HF, RQ, Math.PI / 2, 0, true); s.closePath();
+  const gl = new THREE.ExtrudeGeometry(s, { depth: T, bevelEnabled: false, curveSegments: 24 });
+  gl.applyMatrix4(new THREE.Matrix4().set(0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1));   // (zPerfil, y, espessura) -> (x, y, z)
+  for (const xl of [-x, x - T]) {
+    const m = new THREE.Mesh(gl, psCristal); m.position.x = xl; m.renderOrder = 2;
+    m.add(new THREE.LineSegments(new THREE.EdgesGeometry(gl, 25), bordaPS)); est.add(m);
+  }
+  // fundo black com cantos superiores arredondados + testeira
+  const R = 0.012, f = new THREE.Shape(); f.moveTo(-x, T); f.lineTo(x, T); f.lineTo(x, H - R); f.absarc(x - R, H - R, R, 0, Math.PI / 2, false);
+  f.lineTo(-x + R, H); f.absarc(-x + R, H - R, R, Math.PI / 2, Math.PI, false); f.closePath();
+  const fundo = new THREE.Mesh(new THREE.ExtrudeGeometry(f, { depth: T, bevelEnabled: false, curveSegments: 8 }), preto); fundo.position.z = -z; est.add(fundo);
+  const tw = W - 2 * R, tg = new THREE.PlaneGeometry(tw, H - T), Wt = Math.min(W, 0.40), uv = tg.attributes.uv, pos = tg.attributes.position;
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, pos.getX(i) / Wt + 0.5, 1 - (pos.getY(i) + (H + T) / 2) / H);   // glTF: v invertido
+  const test = new THREE.Mesh(tg, rec.matTesteira); test.position.set(0, (H + T) / 2, -z + T + 0.0003); est.add(test);
+  // divisorias
+  for (let i = 1; i <= c.divisorias; i++)
+    chapa(T, HDIV - T, D - 2 * T, -x + T + i * c.larguraCalha + (i - 1) * T + T / 2, (HDIV + T) / 2, 0, psCristal, est, true);
+  // frente: vinil azul na frente inteira (opcional) + etiqueta com o logo na posicao e no tamanho escolhidos
+  if (frente.total) {
+    const azul = new THREE.Mesh(new THREE.PlaneGeometry(W - 2 * T, HF - T), rec.matAzul); azul.position.set(0, (HF + T) / 2, z + 0.0003); est.add(azul);
+  }
+  const lw = Math.min(frente.logo / 100, W - 2 * T - 0.008), et = new THREE.Mesh(new THREE.PlaneGeometry(lw, lw / 3), rec.matEtiqueta);
+  for (let i = 0; i < 4; i++) et.geometry.attributes.uv.setY(i, 1 - et.geometry.attributes.uv.getY(i));
+  const ex = frente.pos === 'e' ? -x + T + 0.004 + lw / 2 : frente.pos === 'c' ? 0 : x - T - 0.004 - lw / 2;
+  et.position.set(ex, frente.total ? (HF + T) / 2 : T + 0.006 + lw / 6, z + 0.0006); est.add(et);
+  // caixas
+  if (c.caixas) for (let l = 0; l < c.calhas; l++) for (let r = 0; r < c.fileiras; r++) {
+    const m = new THREE.Group(); m.add(new THREE.Mesh(rec.geoCaixa, rec.matCaixa)); if (rec.geoAba) m.add(new THREE.Mesh(rec.geoAba, rec.matAba));
+    m.position.set(-x + T + c.larguraCalha / 2 + l * c.passo, T, z - T - 0.002 - CX.d / 2 - r * PASSO); prod.add(m);
+  }
+}
+
+function linha(a, b) { return new THREE.Line(new THREE.BufferGeometry().setFromPoints([a, b]), new THREE.LineBasicMaterial({ color: 0x3a56a8 })); }
+let pontosCota = [];
+function montarCotas() {
+  cotas.traverse(o => o.geometry?.dispose()); cotas.clear();
+  const w = atual.W / 200, d = atual.D / 200, h = H, m = 0.03, t = 0.008;
+  const V = (x, y, z) => new THREE.Vector3(x, y, z);
+  const seg = (a, b, n) => { const dir = n.clone().multiplyScalar(t);
+    cotas.add(linha(a, b), linha(a.clone().sub(dir), a.clone().add(dir)), linha(b.clone().sub(dir), b.clone().add(dir))); };
+  seg(V(-w, 0, d + m), V(w, 0, d + m), V(0, 0, 1)); seg(V(w + m, 0, -d), V(w + m, 0, d), V(1, 0, 0)); seg(V(-w - m, 0, -d), V(-w - m, h, -d), V(1, 0, 0));
+  pontosCota = [[$('cotaW'), V(0, 0, d + m), `${atual.W} cm`], [$('cotaD'), V(w + m, 0, 0), `${atual.D} cm`], [$('cotaH'), V(-w - m, h / 2, -d), `15 cm`]];
+  pontosCota.forEach(([el, , txt]) => el.textContent = txt);
+}
+function atualizar(reenquadrar = true) {
+  atual.W = +$('sW').value; atual.D = +$('sD').value;
+  const c = calcular(atual.W, atual.D); atual.calhas = c.calhas; atual.fileiras = c.fileiras;
+  $('oW').textContent = `${atual.W}\u00a0cm`; $('oD').textContent = `${atual.D}\u00a0cm`;
+  atual.caixas = c.caixas; const org = `${c.calhas} ${c.calhas === 1 ? 'frente' : 'frentes'} × ${c.fileiras} ${c.fileiras === 1 ? 'fileira' : 'fileiras'}`;
+  $('fCt').textContent = `Capacidade para até ${c.caixas} caixas`; $('fCd').textContent = `Organização: ${org}`;
+  $('fM').textContent = `${atual.W} cm × 15 cm × ${atual.D} cm`;
+  const mm = (c.larguraCalha * 1000).toFixed(0), caixa = 'caixa 6 × 3,3 × 10,5 cm';
+  $('fL').textContent = c.div
+    ? `${c.calhas} ${c.calhas === 1 ? 'calha' : 'calhas'} de ${mm} mm · ${c.divisorias} ${c.divisorias === 1 ? 'divisória' : 'divisórias'} de 5 cm · ${caixa}`
+    : `${c.calhas} ${c.calhas === 1 ? 'frente livre' : 'frentes livres'} de ${mm} mm · sem divisórias · ${caixa}`;
+  legenda();
+  PRESETS.forEach(p => $(p.id).setAttribute('aria-pressed', String(p.W === atual.W && p.D === atual.D)));
+  salvarEndereco();
+  if (!rec) return;
+  construir(c); sombra.scale.set(c.W * 1.25, c.D * 1.25, 1); montarCotas(); aplicarToggles(); if (reenquadrar) enquadrar();
+}
+function distanciaEnquadrada(cam) {   // distancia para o modelo inteiro caber na imagem (retrato ou paisagem)
+  const r = Math.hypot(atual.W, atual.D, atual.H) / 200 + 0.04;
+  const v = THREE.MathUtils.degToRad(cam.fov) / 2, h = Math.atan(Math.tan(v) * cam.aspect);
+  return r / Math.sin(Math.min(v, h));
+}
+function enquadrar() {   // afasta a camera o suficiente para o modelo caber no palco
+  if (renderer.xr.isPresenting) return;
+  const dist = distanciaEnquadrada(camera), dir = camera.position.clone().sub(controls.target).normalize();
+  camera.position.copy(controls.target).addScaledVector(dir, dist); controls.maxDistance = dist * 2.2;
+}
+function camPadrao() {   // a camera original da pagina (3/4 de frente), enquadrada na medida atual: usada nas imagens do PDF
+  const cam = new THREE.PerspectiveCamera(camera.fov, canvas.width / canvas.height, camera.near, camera.far);
+  cam.position.copy(ALVO).addScaledVector(POS_INICIAL.clone().sub(ALVO).normalize(), distanciaEnquadrada(cam)); cam.lookAt(ALVO);
+  return cam;
+}
+function legenda() {
+  const div = comDivisorias ? '' : ', sem divisórias';
+  $('capLine').innerHTML = comEmbalagem ? `Capacidade para até <b>${atual.caixas ?? 0} caixas</b> (${atual.calhas} frentes × ${atual.fileiras} fileiras${div}).` : `Expositor vazio, pronto para uso${div}.`;
+}
+// endereco com a configuracao atual (?l=40&p=28, +d=0 sem divisorias, +e=0 sem embalagem): compartilhar e QR code
+// frente: +f=1 toda azul, +lp=e|c logo a esquerda/no centro, +lt=12 largura do logo em cm (padrao: faixa, direita, 15 cm)
+const consulta = () => `?l=${atual.W}&p=${atual.D}${comDivisorias ? '' : '&d=0'}${comEmbalagem ? '' : '&e=0'}`
+  + `${frente.total ? '&f=1' : ''}${frente.pos === 'd' ? '' : '&lp=' + frente.pos}${frente.logo === 15 ? '' : '&lt=' + frente.logo}`;
+function salvarEndereco() {   // chamado a cada mudanca de configuracao
+  try { history.replaceState(null, '', consulta()); } catch {}
+  agendarUSDZ();
+  if ($('arModal').open && !$('arQR').hidden) desenharQR();
+}
+const marcar = (sim, nao, v) => { $(sim).setAttribute('aria-pressed', String(v)); $(nao).setAttribute('aria-pressed', String(!v)); };
+function definirEmbalagem(v) { comEmbalagem = v; marcar('pCom', 'pSem', v); legenda(); aplicarToggles(); salvarEndereco(); }
+function definirDivisorias(v) { comDivisorias = v; marcar('dCom', 'dSem', v); atualizar(false); }
+function definirFrente(mudanca, refazer = true) {   // aplica total/pos/logo, ajusta o limite do tamanho e atualiza botoes e 3D
+  Object.assign(frente, mudanca);
+  const s = $('sLogo'); s.max = LOGO_MAX(); frente.logo = Math.max(8, Math.min(LOGO_MAX(), Math.round(frente.logo))); s.value = frente.logo;
+  $('oLogo').textContent = `${frente.logo} cm`;
+  marcar('fTotal', 'fParcial', frente.total);
+  for (const [id, p] of [['lpE', 'e'], ['lpC', 'c'], ['lpD', 'd']]) $(id).setAttribute('aria-pressed', String(frente.pos === p));
+  if (refazer) atualizar(false);
+}
+function aplicarToggles() {
+  pivot.traverse(o => { if (o.name === 'Produtos') o.visible = comEmbalagem; });
+  cotas.visible = $('tCotas').checked && !renderer.xr.isPresenting;
+  pontosCota.forEach(([el]) => el.hidden = !cotas.visible);
+  controls.autoRotate = $('tGiro').checked;
+}
+PRESETS.forEach(p => $(p.id).addEventListener('click', () => { $('sW').value = p.W; $('sD').value = p.D; atualizar(); }));
+['sW', 'sD'].forEach(id => $(id).addEventListener('input', () => atualizar()));
+['tCotas', 'tGiro'].forEach(id => $(id).addEventListener('change', aplicarToggles));
+[['pCom', true], ['pSem', false]].forEach(([id, v]) => $(id).addEventListener('click', () => definirEmbalagem(v)));
+[['dCom', true], ['dSem', false]].forEach(([id, v]) => $(id).addEventListener('click', () => definirDivisorias(v)));
+[['fParcial', false], ['fTotal', true]].forEach(([id, v]) => $(id).addEventListener('click', () => definirFrente({ total: v })));
+[['lpE', 'e'], ['lpC', 'c'], ['lpD', 'd']].forEach(([id, p]) => $(id).addEventListener('click', () => definirFrente({ pos: p })));
+$('sLogo').addEventListener('input', () => definirFrente({ logo: +$('sLogo').value }));
+
+function resize() {
+  if (renderer.xr.isPresenting) return;
+  const w = stage.clientWidth, h = stage.clientHeight;
+  renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); enquadrar();
+}
+new ResizeObserver(resize).observe(stage); resize();
+
+// ---------------- Realidade aumentada ----------------
+const ua = navigator.userAgent;
+const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isAndroid = /Android/i.test(ua);
+const emIframe = (() => { try { return window.self !== window.top; } catch { return true; } })();
+let xrOK = false;
+if (navigator.xr && !emIframe) navigator.xr.isSessionSupported('immersive-ar').then(v => xrOK = v).catch(() => {});
+
+const reticulo = new THREE.Mesh(new THREE.RingGeometry(0.07, 0.085, 40).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x3d5db8 }));
+reticulo.matrixAutoUpdate = false; reticulo.visible = false; scene.add(reticulo);
+let hitSource = null, colocado = false, salvo = null;
+const rotuloAR = () => `${atual.W} × 15 × ${atual.D} cm · ${atual.caixas} caixas`;
+
+async function iniciarWebXR() {
+  const session = await navigator.xr.requestSession('immersive-ar', { requiredFeatures: ['hit-test'], optionalFeatures: ['dom-overlay'], domOverlay: { root: $('overlay') } });
+  salvo = { pos: camera.position.clone(), quat: camera.quaternion.clone() };
+  renderer.xr.setReferenceSpaceType('local');
+  await renderer.xr.setSession(session);
+  const viewer = await session.requestReferenceSpace('viewer');
+  hitSource = await session.requestHitTestSource({ space: viewer });
+  $('overlay').hidden = false; colocado = false; pivot.visible = false; sombra.visible = false; aplicarToggles();
+  $('arHint').textContent = 'Aponte para o balcão e mova o celular devagar';
+  session.addEventListener('select', () => {
+    if (!reticulo.visible) return;
+    pivot.position.setFromMatrixPosition(reticulo.matrix); pivot.visible = true; colocado = true;
+    $('arHint').textContent = `${rotuloAR()} em tamanho real · toque para reposicionar`;
+  });
+  session.addEventListener('end', () => {
+    hitSource = null; reticulo.visible = false; $('overlay').hidden = true;
+    pivot.position.set(0, 0, 0); pivot.rotation.set(0, 0, 0); pivot.visible = true; sombra.visible = true;
+    camera.position.copy(salvo.pos); camera.quaternion.copy(salvo.quat); aplicarToggles(); resize();
+  });
+}
+$('arExit').addEventListener('click', () => renderer.xr.getSession()?.end());
+$('arRot').addEventListener('click', () => pivot.rotation.y += Math.PI / 4);
+$('arSwap').addEventListener('click', () => {   // alterna entre os dois tamanhos do projeto
+  const i = PRESETS.findIndex(p => p.W === atual.W && p.D === atual.D), p = PRESETS[(i + 1) % PRESETS.length];
+  $('sW').value = p.W; $('sD').value = p.D; atualizar(false); if (colocado) $('arHint').textContent = `${rotuloAR()} em tamanho real`;
+});
+$('overlay').addEventListener('beforexrselect', e => e.preventDefault());   // toques nos botoes nao reposicionam o modelo
+
+// endereco que o celular abre: no computador local (localhost) usa o endereco publicado, que o celular alcanca
+const local = location.protocol === 'file:' || /^(localhost|127\.|0\.0\.0\.0|\[::1\])/.test(location.hostname);
+// &ar=1: no celular, a pagina abre pronta para a AR (aviso "Abrir a camera" em vez do tutorial)
+const enderecoCelular = () => (local ? ENDERECO_PUBLICO : location.origin + location.pathname) + consulta() + '&ar=1';
+async function desenharQR() {   // QR code em SVG, na cor da marca, com a configuracao atual
+  if (!window.qrcode) await carregarScript('vendor/qrcode.js');
+  const url = enderecoCelular(), qr = qrcode(0, 'M'); qr.addData(url); qr.make();
+  const n = qr.getModuleCount(), q = 4; let d = '';
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.isDark(r, c)) d += `M${c + q} ${r + q}h1v1h-1z`;
+  $('arQR').innerHTML = `<svg viewBox="0 0 ${n + 2 * q} ${n + 2 * q}" shape-rendering="crispEdges" role="img" aria-label="QR code para abrir esta configuração no celular">`
+    + `<rect width="100%" height="100%" fill="#fff"/><path d="${d}" fill="#14285a"/></svg>`;
+  $('arUrl').textContent = url;
+}
+// ---------- modais (QR code e avisos da AR; tutorial) ----------
+function abrirModal(d) { if (d.open) return; if (d.showModal) d.showModal(); else d.setAttribute('open', ''); }
+function fecharModal(d) { if (d.close) d.close(); else d.removeAttribute('open'); }
+document.querySelectorAll('dialog.modal').forEach(d => {
+  d.querySelector('[data-fechar]').addEventListener('click', () => fecharModal(d));
+  d.addEventListener('click', e => {   // clique fora do quadro fecha
+    const r = d.getBoundingClientRect();
+    if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) fecharModal(d);
+  });
+});
+function mostrarCaixa(msg, comQR = false) {
+  $('arBoxMsg').textContent = msg; $('arQR').hidden = !comQR; $('arUrl').textContent = enderecoCelular(); $('btnCopy').textContent = 'Copiar endereço';
+  abrirModal($('arModal'));
+  if (comQR) desenharQR().catch(e => { console.warn(e); $('arQR').hidden = true; });
+}
+if (!isIOS && !isAndroid) $('btnAR').title = 'Mostra um QR code para abrir no celular e ver o expositor no seu balcão';
+
+const ICONES = {
+  girar: '<svg viewBox="0 0 48 48"><path d="M38 20a15 15 0 1 0 1 9"/><path d="M39 10v10H29"/></svg>',
+  medida: '<svg viewBox="0 0 48 48"><path d="M6 30h36v8H6z"/><path d="M12 30v4M18 30v5M24 30v4M30 30v5M36 30v4"/><path d="M10 14h28M10 14l5-4M10 14l5 4M38 14l-5-4M38 14l-5 4"/></svg>',
+  caixa: '<svg viewBox="0 0 48 48"><path d="M24 6 40 14v20L24 42 8 34V14z"/><path d="M8 14l16 8 16-8M24 22v20"/></svg>',
+  frente: '<svg viewBox="0 0 48 48"><rect x="5" y="16" width="38" height="18" rx="2"/><rect x="26" y="20" width="13" height="10" rx="1.5"/><path d="M10 25h11"/></svg>',
+  ar: '<svg viewBox="0 0 48 48"><rect x="13" y="4" width="22" height="40" rx="4"/><path d="M21 39h6"/><path d="M24 13l7 4v8l-7 4-7-4v-8z"/><path d="M17 17l7 4 7-4M24 21v8"/></svg>',
+  pdf: '<svg viewBox="0 0 48 48"><path d="M12 4h17l9 9v31H12z"/><path d="M29 4v9h9"/><path d="M18 24h14M18 30h14M18 36h9"/></svg>',
+};
+const PASSOS = [
+  ['girar', 'Gire e aproxime', 'Arraste o expositor para girar. Role o mouse ou faça pinça com dois dedos para aproximar.'],
+  ['medida', 'Escolha a medida', 'Em “Tamanho”, use a Opção 1 ou 2, ou ajuste a largura e a profundidade. Escolha também com ou sem divisórias entre as calhas.'],
+  ['frente', 'Personalize a frente', 'Em “Frente”, escolha a frente toda azul ou só a faixa azul, a posição do logo (esquerda, centro ou direita) e o tamanho dele.'],
+  ['caixa', 'Com ou sem embalagem', 'Nos botões acima do 3D, veja o expositor cheio de caixas ou vazio.'],
+  ['ar', 'Veja no seu espaço', 'Toque em “Ver no meu espaço (AR)”, no canto do 3D. No celular, o expositor aparece no seu balcão em tamanho real; no computador, aparece um QR code para abrir no celular.'],
+  ['pdf', 'Envie para a fábrica', 'Gere o PDF com vistas cotadas, imagens 3D de todos os ângulos, comparativo com e sem divisórias e lista de peças.'],
+];
+let passo = 0;
+function mostrarPasso(i) {
+  passo = i; const [ic, tit, txt] = PASSOS[i];
+  $('tutIcone').innerHTML = ICONES[ic]; $('tutPasso').textContent = `Passo ${i + 1} de ${PASSOS.length}`;
+  $('tutTitulo').textContent = tit; $('tutTexto').textContent = txt;
+  $('tutPontos').innerHTML = PASSOS.map((_, k) => `<i${k === i ? ' class="on"' : ''}></i>`).join('');
+  $('tutVoltar').hidden = i === 0; $('tutProx').textContent = i === PASSOS.length - 1 ? 'Começar' : 'Próximo';
+}
+function abrirTutorial() { mostrarPasso(0); abrirModal($('tutorial')); }
+function tutorialNaPrimeiraVisita() { let visto = false; try { visto = !!localStorage.getItem('cottonbaby-tutorial'); } catch {} if (!visto) abrirTutorial(); }
+$('tutVoltar').addEventListener('click', () => mostrarPasso(Math.max(0, passo - 1)));
+$('tutProx').addEventListener('click', () => passo < PASSOS.length - 1 ? mostrarPasso(passo + 1) : fecharModal($('tutorial')));
+$('tutPular').addEventListener('click', () => fecharModal($('tutorial')));
+$('tutorial').addEventListener('close', () => { try { localStorage.setItem('cottonbaby-tutorial', 'visto'); } catch {} });
+$('btnAjuda').addEventListener('click', abrirTutorial);
+$('btnCopy').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText($('arUrl').textContent); $('btnCopy').textContent = 'Copiado'; }
+  catch { getSelection().selectAllChildren($('arUrl')); }
+});
+// os modelos prontos (.glb/.usdz) sao das Opcoes 1 e 2 com divisorias, com caixas e com a frente padrao; o resto e gerado na hora
+const presetAtual = () => comDivisorias && comEmbalagem && frentePadrao() ? PRESETS.find(p => p.W === atual.W && p.D === atual.D) : undefined;
+// iPhone: o modelo da AR e sempre gerado da cena three.js (mesmo acrilico transparente da tela, em todas as opcoes).
+// Ele e preparado em segundo plano depois de cada mudanca, para a camera abrir sem espera no toque.
+let usdzPronto = null, timerUSDZ = null;   // usdzPronto = { chave, url } da configuracao ja exportada
+async function gerarUSDZ() {
+  const chave = consulta();
+  if (usdzPronto?.chave === chave) return usdzPronto.url;
+  const { USDZExporter } = await import('three/addons/exporters/USDZExporter.js');
+  const dados = await new USDZExporter().parseAsync(pivot);   // as cotas ficam fora do pivot: nao entram no modelo
+  const url = URL.createObjectURL(new Blob([dados], { type: 'model/vnd.usdz+zip' }));
+  if (usdzPronto) URL.revokeObjectURL(usdzPronto.url);
+  usdzPronto = { chave, url };
+  return url;
+}
+function agendarUSDZ() {
+  if (!isIOS || !rec) return;
+  clearTimeout(timerUSDZ); timerUSDZ = setTimeout(() => gerarUSDZ().catch(e => console.warn(e)), 800);
+}
+async function quickLook(preset) {   // iPhone / iPad: o Quick Look abre direto no modo AR (camera)
+  const a = $('quicklook');
+  if (usdzPronto?.chave === consulta()) a.href = usdzPronto.url;                 // modelo da cena ja preparado
+  else if (preset) { a.href = `models/${preset.arq}.usdz`; agendarUSDZ(); }     // ainda preparando: usa o arquivo pronto
+  else a.href = await gerarUSDZ();
+  a.click();
+}
+// chegou pelo QR (&ar=1) no celular: aviso "Abrir a camera" (o navegador so libera a camera com um toque)
+let veioDoQR = false;
+function abrirArPronto() {
+  $('arProntoIcone').innerHTML = ICONES.ar; abrirModal($('arPronto'));
+  if (isIOS) gerarUSDZ().catch(e => console.warn(e));   // prepara o modelo enquanto o aviso esta na tela
+}
+$('btnAbrirCamera').addEventListener('click', () => { fecharModal($('arPronto')); $('btnAR').click(); });
+$('arProntoDepois').addEventListener('click', () => fecharModal($('arPronto')));
+$('btnAR').addEventListener('click', async () => {
+  if (emIframe) return mostrarCaixa('A realidade aumentada precisa da câmera, que não funciona nesta pré-visualização. Aponte a câmera do celular para o QR code:', true);
+  const preset = presetAtual();
+  if (isIOS) { try { return await quickLook(preset); } catch (e) { console.warn(e); return mostrarCaixa('Não foi possível gerar o modelo para AR neste aparelho.'); } }
+  if (xrOK) { try { return await iniciarWebXR(); } catch (e) { console.warn(e); } }
+  if (isAndroid && preset) {
+    const glb = new URL(`models/${preset.arq}.glb`, location.href).href;
+    location.href = `intent://arvr.google.com/scene-viewer/1.0?file=${encodeURIComponent(glb)}&mode=ar_preferred&resizable=false&title=${encodeURIComponent('Expositor Cottonbaby ' + rotuloAR())}#Intent;scheme=https;package=com.google.android.googlequicksearchbox;action=android.intent.action.VIEW;S.browser_fallback_url=${encodeURIComponent(location.href)};end;`;
+    return;
+  }
+  if (isAndroid) return mostrarCaixa('Para ver esta configuração em AR, use o Chrome com o Google Play Services para RA instalado. As Opções 1 e 2, com divisórias e com embalagem, abrem em qualquer Android compatível.');
+  mostrarCaixa('Aponte a câmera do celular (iPhone ou Android) para o QR code e toque em “Ver no meu espaço (AR)”: o expositor aparece no seu balcão, em tamanho real, com esta mesma configuração.'
+    + (local ? ' Pré-visualização local: o QR abre o endereço publicado.' : ''), true);
+});
+
+// ---------------- PDF de fabricacao (jsPDF, gerado no navegador com a medida escolhida) ----------------
+const nf = (v, d = 0) => new Intl.NumberFormat('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d }).format(v);
+const carregarScript = src => new Promise((ok, err) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => err(new Error('Falha ao carregar ' + src)); document.head.appendChild(s); });
+async function b64(url) {
+  const r = await fetch(url); if (!r.ok) throw new Error('Falha ao carregar ' + url);
+  const b = new Uint8Array(await r.arrayBuffer()); let s = '';
+  for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+let pdfRec = null;
+async function prepararPDF() {
+  if (!pdfRec) {
+    if (!window.jspdf) await carregarScript('vendor/jspdf.umd.min.js');
+    const [r, b, l, logo] = await Promise.all([b64('fonts/Montserrat-Regular.ttf'), b64('fonts/Montserrat-Bold.ttf'), b64('fonts/Montserrat-Light.ttf'), b64('img/logo_navy.png')]);
+    pdfRec = { r, b, l, logo };
+  }
+  return pdfRec;
+}
+const POSICAO = { e: 'à esquerda', c: 'no centro', d: 'à direita' };
+const larguraLogo = W => Math.round(Math.min(frente.logo * 10, W - 16));   // mm (W em mm)
+function pecas(c, W, D) {   // medidas de corte em mm: [peca, descricao, material, qtd, largura, altura, acabamento]
+  const lw = larguraLogo(W);
+  const pecaF = frente.total
+    ? ['F', 'Vinil frontal (frente toda azul)', 'Vinil adesivo azul', 1, W - 8, 66, `azul ${AZUL_ETIQUETA.toUpperCase()} com logotipo branco de ${lw} mm ${POSICAO[frente.pos]}`]
+    : ['F', 'Etiqueta frontal', 'Vinil adesivo azul', 1, lw, Math.round(lw / 3), `azul sólido com logotipo branco; aplicada ${POSICAO[frente.pos]}`];
+  return [
+    ['A', 'Base', 'PS cristal 4 mm', 1, W, D, 'cantos vivos, bordas polidas'],
+    ['B', 'Frente', 'PS cristal 4 mm', 1, W - 8, 66, 'borda superior polida'],
+    ['C', 'Lateral', 'PS cristal 4 mm', 2, D - 4, 116, 'quina superior frontal R50; bordas polidas'],
+    ['D', 'Fundo / testeira', 'PS black 4 mm', 1, W, 146, '2 cantos superiores R12; texto branco'],
+    ['E', 'Divisória', 'PS cristal 4 mm', c.divisorias, D - 8, 46, 'cantos vivos, bordas polidas'],
+    pecaF,
+  ].filter(p => p[3] > 0);
+}
+const areaCristal = lista => lista.filter(p => p[2] === 'PS cristal 4 mm').reduce((s, p) => s + p[3] * p[4] * p[5], 0) / 1e6;   // m2 pelas medidas de corte
+function foto3D(div, cam = camera, semSombra = false) {   // imagem 3D (fundo branco, sem as linhas de cota); div: refaz o modelo com/sem divisorias
+  if (rec && div !== undefined) { construir(calcular(atual.W, atual.D, div)); aplicarToggles(); }
+  const cotasOn = cotas.visible, sombraOn = sombra.visible; cotas.visible = false; if (semSombra) sombra.visible = false;
+  renderer.render(scene, cam); cotas.visible = cotasOn; sombra.visible = sombraOn;
+  const c2 = document.createElement('canvas'); c2.width = canvas.width; c2.height = canvas.height; const g2 = c2.getContext('2d');
+  g2.fillStyle = '#ffffff'; g2.fillRect(0, 0, c2.width, c2.height); g2.drawImage(canvas, 0, 0);
+  return c2.toDataURL('image/jpeg', 0.9);
+}
+const VISTAS = { frontal: [0, 0, 1], lateral: [1, 0, 0], posterior: [0, 0, -1], topo: [0, 1, 0] };   // a frente do expositor olha para +z
+function camVista(nome) {   // camera ortografica enquadrando o expositor de frente, de lado, de tras ou de cima
+  const [dx, dy, dz] = VISTAS[nome], w = atual.W / 100, d = atual.D / 100, aspecto = canvas.width / canvas.height;
+  const larg = dx ? d : w, alt = dy ? d : H, meia = Math.max(larg / 2, alt / 2 * aspecto) * 1.08;
+  const cam = new THREE.OrthographicCamera(-meia, meia, meia / aspecto, -meia / aspecto, 0.01, 10);
+  cam.position.set(dx * 2, H / 2 + dy * 2, dz * 2); if (dy) cam.up.set(0, 0, -1);   // de cima: frente embaixo na imagem
+  cam.lookAt(0, dy ? 0 : H / 2, 0); cam.updateProjectionMatrix(); return cam;
+}
+async function gerarPDF() {
+  const st = $('pdfStatus'), btn = $('btnPDF'); btn.disabled = true; st.textContent = 'Gerando PDF…';
+  try {
+    const lib = await prepararPDF(), { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    doc.addFileToVFS('MR.ttf', lib.r); doc.addFont('MR.ttf', 'Mont', 'normal');
+    doc.addFileToVFS('MB.ttf', lib.b); doc.addFont('MB.ttf', 'Mont', 'bold');
+    doc.addFileToVFS('ML.ttf', lib.l); doc.addFont('ML.ttf', 'MontL', 'normal');
+    const c = calcular(atual.W, atual.D), W = atual.W * 10, D = atual.D * 10, lane = c.larguraCalha * 1000, pas = c.passo * 1000;
+    const variante = c.div ? 'com divisórias' : 'sem divisórias';
+    const Tm = 4, Hm = 150, HFm = 70, HSm = 120, HDm = 50, RQm = 50, BW = 60, BH = 105, BD = 33, ABA = 13, ALT = Hm;
+    const NAVY = [20, 40, 90], GREY = [77, 91, 130], PSC = [223, 232, 243], PRETO = [22, 22, 26], PW = 297, PH = 210, M = 14;
+    const med = `${atual.W} × 15 × ${atual.D} cm`, hoje = new Intl.DateTimeFormat('pt-BR').format(new Date());
+    const fonte = (peso, tam, cor = NAVY) => { doc.setFont(peso === 'light' ? 'MontL' : 'Mont', peso === 'bold' ? 'bold' : 'normal'); doc.setFontSize(tam); doc.setTextColor(...cor); };
+    const traco = (cor = NAVY, w = 0.25) => { doc.setDrawColor(...cor); doc.setLineWidth(w); };
+    let np = 0;
+    const pagina = (leve, forte, sub) => {
+      if (np++) doc.addPage();
+      doc.setFillColor(241, 242, 245); doc.rect(0, 0, PW, PH, 'F');
+      doc.addImage('data:image/png;base64,' + lib.logo, 'PNG', PW - M - 36, M - 3, 36, 36 * 288 / 868);
+      fonte('light', 20); doc.text(leve, M, M + 6); const w = doc.getTextWidth(leve + ' ');
+      fonte('bold', 20); doc.text(forte, M + w, M + 6);
+      traco(NAVY, 0.3); doc.line(M, M + 10, PW - M - 42, M + 10);
+      fonte('normal', 9.5, GREY); doc.text(sub, M, M + 15.5);
+      fonte('normal', 7, GREY); doc.text(`Expositor Cottonbaby · ${med} · ${variante} · gerado em ${hoje} · medidas em mm`, M, PH - 7); doc.text(String(np), PW - M, PH - 7, { align: 'right' });
+    };
+    const pilula = (cx, y, txt) => { fonte('bold', 8.5, [255, 255, 255]); const w = doc.getTextWidth(txt) + 9;
+      doc.setFillColor(...NAVY); doc.roundedRect(cx - w / 2, y, w, 6, 3, 3, 'F'); doc.text(txt, cx, y + 4.1, { align: 'center' }); };
+    const cotaH = (xa, xb, y, txt) => { traco(NAVY, 0.2); doc.line(xa, y - 1.5, xa, y + 1.5); doc.line(xb, y - 1.5, xb, y + 1.5);
+      fonte('bold', 8); const w = doc.getTextWidth(txt) + 2.4, xm = (xa + xb) / 2;
+      if (xb - xa > w + 3) { doc.line(xa, y, xm - w / 2, y); doc.line(xm + w / 2, y, xb, y); doc.text(txt, xm, y + 1, { align: 'center' }); }
+      else { doc.line(xa, y, xb, y); doc.text(txt, xm, y - 1.4, { align: 'center' }); } };
+    const cotaV = (ya, yb, x, txt) => { traco(NAVY, 0.2); doc.line(x - 1.5, ya, x + 1.5, ya); doc.line(x - 1.5, yb, x + 1.5, yb); doc.line(x, ya, x, yb);
+      fonte('bold', 8); doc.text(txt, x - 1.2, (ya + yb) / 2 + doc.getTextWidth(txt) / 2, { angle: 90 }); };
+
+    // ---------- pagina 1: vistas cotadas ----------
+    pagina('Expositor', 'Cottonbaby', `Ficha de fabricação · ${med} (L × A × P) · ${variante} · PS cristal 4 mm e fundo black`);
+    const s = Math.min((PW - 2 * M - 86) / (2 * W + D), 82 / Math.max(ALT, D)), oy = 124;
+    const vista = ox => ({ R: (x, y, w, h, st = 'S') => doc.rect(ox + x * s, oy - (y + h) * s, w * s, h * s, st),
+      RR: (x, y, w, h, r, st = 'S') => doc.roundedRect(ox + x * s, oy - (y + h) * s, w * s, h * s, r * s, r * s, st), X: x => ox + x * s, Y: y => oy - y * s });
+    const xf = M + 20, xl = xf + W * s + 34, xt = xl + D * s + 30, topo = oy - ALT * s - 10;
+    // frontal
+    let v = vista(xf); pilula(xf + W * s / 2, topo, 'Vista frontal');
+    traco(NAVY, 0.25); doc.setFillColor(...PRETO); v.RR(0, Tm, W, Hm - Tm, 12, 'FD'); doc.setFillColor(...PSC); v.R(0, 0, W, Tm, 'FD');
+    if (c.caixas) for (let i = 0; i < c.calhas; i++) { const bx = Tm + lane / 2 + i * pas - BW / 2;
+      traco(GREY, 0.15); doc.setFillColor(255, 255, 255); v.RR(bx, Tm + BH - 6, BW, ABA + 6, 5, 'FD'); v.R(bx, Tm, BW, BH, 'FD');
+      doc.setFillColor(...NAVY); v.R(bx, Tm, BW, BH * 0.31, 'F'); }
+    // frente: vinil azul (frente inteira ou etiqueta) com o logotipo na posicao escolhida
+    const lwm = larguraLogo(W), lhm = lwm / 3;
+    const lx = frente.pos === 'e' ? Tm + 4 : frente.pos === 'c' ? (W - lwm) / 2 : W - Tm - 4 - lwm, ly = frente.total ? (Tm + HFm - lhm) / 2 : Tm + 6;
+    doc.setFillColor(23, 40, 92); if (frente.total) v.R(Tm, Tm, W - 2 * Tm, HFm - Tm, 'F'); else v.R(lx, ly, lwm, lhm, 'F');
+    fonte('bold', 10, [255, 255, 255]); const tam = 10 * 0.7 * lwm * s / doc.getTextWidth('Cottonbaby');
+    fonte('bold', tam, [255, 255, 255]); doc.text('Cottonbaby', v.X(lx + lwm / 2), v.Y(ly + lhm / 2) + tam * 0.3528 * 0.35, { align: 'center' });
+    traco(NAVY, 0.3); v.R(Tm, Tm, W - 2 * Tm, HFm - Tm); v.R(0, Tm, Tm, HSm - Tm); v.R(W - Tm, Tm, Tm, HSm - Tm);
+    if (!frente.total) for (let i = 1; i <= c.divisorias; i++) v.R(Tm + i * lane + (i - 1) * Tm, Tm, Tm, HDm - Tm);   // atras do vinil inteiro, nao aparecem
+    cotaH(v.X(0), v.X(W), oy + 7, nf(W)); cotaV(v.Y(Hm), v.Y(0), xf - 7, nf(Hm));
+    cotaV(v.Y(HFm), v.Y(0), v.X(W) + 5, nf(HFm)); cotaV(v.Y(HSm), v.Y(0), v.X(W) + 11, nf(HSm));
+    // lateral (frente a esquerda)
+    v = vista(xl); pilula(xl + D * s / 2, topo, 'Vista lateral');
+    traco(NAVY, 0.25); doc.setFillColor(...PSC); v.R(0, 0, D, Tm, 'FD'); doc.setFillColor(...PRETO); v.R(D - Tm, Tm, Tm, Hm - Tm, 'FD');
+    if (c.caixas) for (let r = 0; r < c.fileiras; r++) { const bx = Tm + 2 + r * (BD + 0.6); traco(GREY, 0.15); doc.setFillColor(255, 255, 255); v.R(bx, Tm, BD, BH, 'FD');
+      doc.line(v.X(bx + BD), v.Y(Tm + BH), v.X(bx + BD), v.Y(Tm + BH + ABA)); }
+    traco(NAVY, 0.3); const pf = [[0, Tm], [D - Tm, Tm], [D - Tm, HSm], [RQm, HSm]];
+    for (let i = 1; i <= 24; i++) { const a = Math.PI / 2 + i / 24 * Math.PI / 2; pf.push([RQm + RQm * Math.cos(a), HFm + RQm * Math.sin(a)]); }
+    pf.forEach((p0, i) => { const p1 = pf[(i + 1) % pf.length]; doc.line(v.X(p0[0]), v.Y(p0[1]), v.X(p1[0]), v.Y(p1[1])); });
+    if (c.divisorias) { doc.setLineDashPattern([0.8, 0.8], 0); doc.line(v.X(Tm), v.Y(HDm), v.X(D - Tm), v.Y(HDm)); doc.setLineDashPattern([], 0); }
+    fonte('bold', 8); doc.text('R' + RQm, v.X(0) - 1.5, v.Y(HSm - 8), { align: 'right' });
+    cotaH(v.X(0), v.X(D), oy + 7, nf(D)); cotaV(v.Y(Hm), v.Y(0), v.X(D) + 6, nf(Hm)); if (c.divisorias) cotaV(v.Y(HDm), v.Y(0), xl - 5, nf(HDm)); cotaV(v.Y(HFm), v.Y(0), xl - 11, nf(HFm));
+    // superior (frente embaixo)
+    v = vista(xt); pilula(xt + W * s / 2, oy - D * s - 16, 'Vista superior');
+    traco(NAVY, 0.25); doc.setFillColor(248, 250, 252); v.R(0, 0, W, D, 'FD'); doc.setFillColor(...PRETO); v.R(0, D - Tm, W, Tm, 'FD');
+    doc.setFillColor(...PSC); v.R(0, 0, Tm, D - Tm, 'FD'); v.R(W - Tm, 0, Tm, D - Tm, 'FD'); v.R(Tm, 0, W - 2 * Tm, Tm, 'FD');
+    for (let i = 1; i <= c.divisorias; i++) v.R(Tm + i * lane + (i - 1) * Tm, Tm, Tm, D - 2 * Tm, 'FD');
+    if (c.caixas) { traco(GREY, 0.15); doc.setFillColor(255, 255, 255);
+      for (let i = 0; i < c.calhas; i++) for (let r = 0; r < c.fileiras; r++) v.R(Tm + lane / 2 + i * pas - BW / 2, Tm + 2 + r * (BD + 0.6), BW, BD, 'FD'); }
+    cotaH(v.X(0), v.X(W), oy + 7, nf(W)); cotaV(v.Y(D), v.Y(0), xt - 7, nf(D)); cotaH(v.X(Tm), v.X(Tm + lane), v.Y(D) - 5, nf(lane));
+    // resumo
+    const col = (x, tit, linhas) => { fonte('bold', 10.5); doc.text(tit, x, 150); traco(NAVY, 0.3); doc.line(x, 152.5, x + 80, 152.5);
+      fonte('normal', 9); linhas.forEach((l, i) => doc.text(l, x, 158.5 + i * 5.2)); };
+    col(M, 'Medidas', [`Externo: ${nf(W)} × ${nf(Hm)} × ${nf(D)} mm (L × A × P)`, `Frente ${HFm} mm · laterais ${HSm} mm · raio ${RQm} mm`, `Chapa de ${Tm} mm · fundo black ${nf(W)} × ${Hm - Tm} mm`,
+      `Frente ${frente.total ? 'toda azul' : 'com faixa azul'} · logotipo de ${nf(lwm)} mm ${POSICAO[frente.pos]}`]);
+    col(M + 94, 'Capacidade', [`Até ${c.caixas} caixas: ${c.calhas} frentes × ${c.fileiras} fileiras`,
+      c.div ? `${c.calhas} calhas de ${nf(lane)} mm · ${c.divisorias} divisórias de ${HDm} mm` : `${c.calhas} frentes livres de ${nf(lane)} mm · sem divisórias`,
+      `Caixa ${BW} × ${BD} × ${BH} mm (L × P × A) + aba de ${ABA} mm`]);
+    col(M + 188, 'Observações', ['Peças planas, coladas com cola solvente para PS.', 'Bordas aparentes polidas. Tolerância de corte ±0,3 mm.', 'Conferir o encaixe com a caixa real antes de produzir.']);
+
+    // ---------- imagens 3D: sempre a vista da tela + frontal, lateral, posterior e topo; e as duas versoes para o comparativo ----------
+    const cp = camPadrao(), fotoTela = foto3D(undefined, cp);   // sempre a vista original da pagina, mesmo que o usuario tenha girado
+    const fotosVistas = [['frontal', 'Vista frontal'], ['lateral', 'Vista lateral'], ['posterior', 'Vista posterior'], ['topo', 'Vista superior (topo)']]
+      .map(([n, rotulo]) => [rotulo, foto3D(undefined, camVista(n), true)]);
+    const fotosComp = [true, false].map(div => foto3D(div, cp));
+    if (rec) { construir(c); aplicarToggles(); }   // devolve a tela para a opcao escolhida
+    const imagem = (url, x, y, w, h) => {   // imagem inteira dentro da caixa (sem cortar), centralizada
+      doc.setFillColor(255, 255, 255); doc.roundedRect(x, y, w, h, 3, 3, 'F');
+      const a = canvas.width / canvas.height; let iw = w, ih = w / a; if (ih > h) { ih = h; iw = h * a; }
+      doc.addImage(url, 'JPEG', x + (w - iw) / 2, y + (h - ih) / 2, iw, ih); };
+
+    // ---------- pagina 2: imagens 3D de todos os angulos ----------
+    pagina('Imagens 3D', 'de todos os ângulos', `${med} · ${variante} · ${comEmbalagem ? 'com' : 'sem'} embalagem · vista da tela, frontal, lateral, posterior e topo`);
+    pilula(M + 64, 33, 'Vista da tela'); imagem(fotoTela, M, 41, 128, 152);
+    fotosVistas.forEach(([rotulo, url], k) => { const x0 = M + 137 + (k % 2) * 68, y0 = 33 + Math.floor(k / 2) * 82;
+      pilula(x0 + 32, y0, rotulo); imagem(url, x0, y0 + 8, 64, 70); });
+
+    // ---------- pagina 3: comparativo com x sem divisorias ----------
+    pagina('Comparativo:', 'com e sem divisórias', `${med} · mesma medida externa, muda só o interior · opção escolhida: ${variante}`);
+    [true, false].forEach((div, k) => {
+      const cv = calcular(atual.W, atual.D, div), ln = cv.larguraCalha * 1000, ps = cv.passo * 1000, lista = pecas(cv, W, D), LC = 130, x0 = M + k * 139;
+      const nPS = lista.filter(p => p[2].startsWith('PS')).reduce((s, p) => s + p[3], 0);
+      pilula(x0 + LC / 2, 33, (div ? 'Com divisórias' : 'Sem divisórias') + (div === c.div ? ' · opção escolhida' : ''));
+      imagem(fotosComp[k], x0, 41, LC, 64);
+      fonte('bold', 8.5); doc.text('Vista superior (frente embaixo)', x0, 113);
+      const s3 = Math.min((LC - 24) / W, 42 / D), ox = x0 + (LC - W * s3) / 2, oy3 = 124 + D * s3;
+      const R = (x, y, w, h, st = 'S') => doc.rect(ox + x * s3, oy3 - (y + h) * s3, w * s3, h * s3, st);
+      traco(NAVY, 0.25); doc.setFillColor(248, 250, 252); R(0, 0, W, D, 'FD'); doc.setFillColor(...PRETO); R(0, D - Tm, W, Tm, 'FD');
+      doc.setFillColor(...PSC); R(0, 0, Tm, D - Tm, 'FD'); R(W - Tm, 0, Tm, D - Tm, 'FD'); R(Tm, 0, W - 2 * Tm, Tm, 'FD');
+      if (cv.caixas) { traco(GREY, 0.15); doc.setFillColor(255, 255, 255);
+        for (let i = 0; i < cv.calhas; i++) for (let r = 0; r < cv.fileiras; r++) R(Tm + ln / 2 + i * ps - BW / 2, Tm + 2 + r * (BD + 0.6), BW, BD, 'FD'); }
+      traco(NAVY, 0.2); doc.setFillColor(...NAVY);
+      for (let i = 1; i <= cv.divisorias; i++) R(Tm + i * ln + (i - 1) * Tm, Tm, Tm, D - 2 * Tm, 'FD');   // divisorias destacadas em azul
+      cotaH(ox + Tm * s3, ox + (Tm + ln) * s3, oy3 - D * s3 - 3.5, nf(ln)); cotaH(ox, ox + W * s3, oy3 + 5, nf(W));
+      const linhas = div
+        ? [`${cv.divisorias} divisórias de PS cristal (peça E, ${D - 8} × 46 mm), em azul na vista`, `${cv.calhas} calhas de ${nf(ln)} mm: cada coluna de caixas fica guiada`]
+        : ['Sem divisórias: as caixas ficam lado a lado, apoiadas entre si', `${cv.calhas} frentes livres de ${nf(ln)} mm`];
+      linhas.push(`Capacidade: até ${cv.caixas} caixas (${cv.calhas} frentes × ${cv.fileiras} fileiras)`,
+        `${nPS} peças de PS · ${nf(areaCristal(lista), 2)} m² de PS cristal (medidas de corte)`,
+        div ? `Montagem com gabarito de ${nf(ln)} mm entre as divisórias` : 'Montagem mais simples: sem colagem interna');
+      fonte('normal', 9); linhas.forEach((l, i) => doc.text(l, x0, 178 + i * 5));
+    });
+
+    // ---------- pagina 4: lista de pecas ----------
+    pagina('Lista de peças e', 'plano de corte', `${med} · ${variante} · chapas de PS ${Tm} mm · medidas de corte em mm`);
+    const cols = ['Peça', 'Descrição', 'Material', 'Qtd', 'Medida de corte (mm)', 'Acabamento'], larg = [16, 52, 42, 14, 46, 99]; let y = 38;
+    doc.setFillColor(...NAVY); doc.roundedRect(M, y, 269, 7, 3.5, 3.5, 'F'); fonte('bold', 9, [255, 255, 255]);
+    let x = M; cols.forEach((t, i) => { doc.text(t, x + 3, y + 4.8); x += larg[i]; }); y += 7;
+    for (const p of pecas(c, W, D)) { x = M; [p[0], p[1], p[2], p[3], `${p[4]} × ${p[5]}`, p[6]].forEach((t, i) => { fonte(i ? 'normal' : 'bold', 9); doc.text(String(t), x + 3, y + 4.8); x += larg[i]; });
+      traco([201, 208, 224], 0.2); doc.line(M, y + 7, M + 269, y + 7); y += 7; }
+    y += 10; fonte('bold', 10.5); doc.text('Sequência de fabricação', M, y); traco(NAVY, 0.3); doc.line(M, y + 2.5, M + 130, y + 2.5); y += 8.5;
+    fonte('normal', 9);
+    ['1. Cortar as peças a laser ou router CNC, mantendo o filme protetor.', '2. Arredondar R50 na quina superior frontal das laterais e R12 no topo do fundo.',
+     `3. Polir as bordas aparentes (frente, laterais${c.div ? ', divisórias' : ''} e topo do fundo).`, '4. Imprimir a testeira branca no fundo black (UV ou vinil de recorte).',
+     ...(c.div ? ['5. Colar laterais e frente sobre a base; depois o fundo e as divisórias,', `    usando um gabarito de ${nf(lane)} mm entre as divisórias.`]
+               : ['5. Colar laterais e frente sobre a base; depois o fundo (versão sem divisórias).']),
+     frente.total ? `6. Revestir a frente com o vinil azul inteiro (logotipo de ${nf(larguraLogo(W))} mm ${POSICAO[frente.pos]}).`
+                  : `6. Aplicar a etiqueta azul ${POSICAO[frente.pos]} da frente, 6 mm acima da base.`]
+      .forEach((l, i) => doc.text(l, M, y + i * 5.4));
+    imagem(fotoTela, PW - M - 122, 98, 122, PH - 14 - 98);   // imagem 3D da configuracao atual
+
+    const nome = `Expositor_Cottonbaby_${atual.W}x15x${atual.D}cm_${c.div ? 'com' : 'sem'}-divisorias.pdf`, blob = doc.output('blob');
+    const dl = window.claude?.use ? await window.claude.use('downloads') : null;
+    if (dl) { await dl.save({ filename: nome, data: blob }); st.textContent = `PDF salvo: ${nome}`; }
+    else { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nome; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 30000); st.textContent = `PDF gerado: ${nome}`; }
+    window.__ultimoPDF = blob;
+  } catch (e) {
+    console.error(e);
+    st.textContent = e?.code === 'declined' ? 'Download cancelado. Clique de novo para gerar o PDF.' : 'Não foi possível gerar o PDF aqui. Recarregue a página e tente de novo.';
+  } finally { btn.disabled = false; }
+}
+$('btnPDF').addEventListener('click', gerarPDF);
+
+const tmp = new THREE.Vector3();
+renderer.setAnimationLoop((_, frame) => {
+  if (frame && hitSource) {
+    const hits = frame.getHitTestResults(hitSource);
+    if (hits.length) { reticulo.visible = true; reticulo.matrix.fromArray(hits[0].getPose(renderer.xr.getReferenceSpace()).transform.matrix);
+      if (!colocado) $('arHint').textContent = 'Toque na tela para colocar o expositor'; }
+    else reticulo.visible = false;
+  } else if (!renderer.xr.isPresenting) {
+    controls.update();
+    if (cotas.visible) { const w = stage.clientWidth, h = stage.clientHeight;
+      pontosCota.forEach(([el, p]) => { tmp.copy(p).project(camera);
+        el.style.transform = `translate(-50%,-50%) translate(${(tmp.x + 1) / 2 * w}px,${(1 - tmp.y) / 2 * h}px)`; }); }
+  }
+  renderer.render(scene, camera);
+});
+try {   // medida inicial vinda do endereco (?l=62&p=22), para compartilhar uma configuracao
+  const q = new URLSearchParams(location.search), l = +q.get('l'), pr = +q.get('p');
+  if (l >= 20 && l <= 80) $('sW').value = l; if (pr >= 10 && pr <= 60) $('sD').value = pr;
+  if (q.get('d') === '0') { comDivisorias = false; marcar('dCom', 'dSem', false); }
+  if (q.get('e') === '0') definirEmbalagem(false);
+  veioDoQR = q.get('ar') === '1' && (isIOS || isAndroid);
+  const lp = q.get('lp'), lt = +q.get('lt');
+  definirFrente({ total: q.get('f') === '1', pos: ['e', 'c'].includes(lp) ? lp : 'd', logo: lt >= 8 && lt <= 19 ? lt : 15 }, false);
+} catch {}
+atualizar();
+carregarRecursos().then(r => { rec = r; $('status').hidden = true; atualizar(); if (veioDoQR) abrirArPronto(); else tutorialNaPrimeiraVisita(); })
+  .catch(e => { $('status').textContent = 'Não foi possível carregar o modelo 3D.'; console.error(e); tutorialNaPrimeiraVisita(); });
+</script>
+</body>
+</html>
